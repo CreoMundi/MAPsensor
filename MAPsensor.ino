@@ -35,7 +35,7 @@ const float MIN_HYST = 0.01;        // minimum hysteresis in bar
 const float MAX_HYST = 0.01;        // maximum hysteresis in bar
 const float INPUT_VOLTAGE = 4.965;  // measured with multimeter
 const float REF_VOLTAGE = 2.485;    // from reference source
-volatile bool running = false;      // for noticing the interrupt
+volatile bool bool_running = false;      // for noticing the interrupt
 float pres_set;                     // for the setPressure()
 float current_pressure;
 
@@ -63,12 +63,13 @@ void loop() {
   float voltage = avgVoltRead();
   current_pressure = absPresMeasure(voltage);
   
-  if (running = false){
+  if (bool_running == false){
     setPressure();
   } else {
     maintainPressure();
   }
-  
+
+
   Serial.println(current_pressure);
   Serial.print("\t");
   Serial.println(voltage);
@@ -90,22 +91,31 @@ float avgVoltRead(void){
 }
 
 
-  // measure absolute pressure in kPa
+  // measure absolute pressure in bar
 float absPresMeasure(float voltage){
-  return (328.24 * voltage / INPUT_VOLTAGE - 6.53);
+  float pres_kpa = (328.24 * voltage / INPUT_VOLTAGE - 6.53);
+  return fmap(pres_kpa, 10.0, 101.325, -0.9, 0);
 }
 
 
   // use potentiometer to choose pressure
 void setPressure(void){
   float value;
-  while(running = false){
-    pres_set = fmap(analogRead(POTENTIOMETER), -0.1, 0, 0, 1023);   // show in [bar], -0.1 bar to 0 bar
+  while(bool_running == false){
     
-    // show on screen
+//    float value = fmap(analogRead(POTENTIOMETER), 0, 1023, 0, 5.0);
+    pres_set = fmap(analogRead(POTENTIOMETER), 0, 1023, -0.9, 0.);   // show in [bar], -0.1 bar to 0 bar
     
-    if (digitalRead(ACPT_BTN), LOW){
-      running = true;
+    //
+//    Serial.print(value);
+//    Serial.print("\t");
+    Serial.println(pres_set);
+    Serial.print("\n");
+    delay(100);
+    //
+    
+    if (digitalRead(ACPT_BTN) == LOW){
+      bool_running = true;
     }
   }
 }
@@ -113,9 +123,9 @@ void setPressure(void){
 
   // keep the pressure within a given hysteresis
 void maintainPressure(void){
-  if (absPresMeasure(avgVoltRead) <= (pres_set - MIN_HYST)){
+  if (absPresMeasure(avgVoltRead()) <= (pres_set - MIN_HYST)){
     digitalWrite(RELAY, HIGH);
-  }  else if (absPresMeasure(avgVoltRead) >= (pres_set + MAX_HYST)){
+  }  else if (absPresMeasure(avgVoltRead()) >= (pres_set + MAX_HYST)){
      digitalWrite(RELAY, LOW);
    }
 }
@@ -124,7 +134,12 @@ void maintainPressure(void){
   // turn the pump off, ONLY FOR INTERRUPT
 void reset(void){
   digitalWrite(RELAY, LOW);
-  running = false;
+  bool_running = false;
+  
+  //
+  Serial.println("INTERRUPT");
+  //
+  
 }
 
 
