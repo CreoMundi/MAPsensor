@@ -21,4 +21,5 @@
   Ur = 2,485 V (measured with multimeter)
   
   CURRENT ERROR WHILE AT ATM. PRESS. ~ -0.02 BAR (-2 kPa)
+  
   Created by Jan Zaslawski
