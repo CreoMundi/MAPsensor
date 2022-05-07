@@ -1,5 +1,5 @@
 /*
-  Electronic steering for a vacuum pump via a 96 753 795 80 MAP sensor:
+  Simple control system for a vacuum pump via a 96 753 795 80 MAP sensor:
   
          Pinout:
          _______ 
@@ -21,8 +21,9 @@
   reference voltage from LM385Z 2.5 is used in order to increase resolution
   Ur = 2,485 V (measured with multimeter)
   
-  
-  CURRENT ERROR WHILE AT ATM. PRESS.: -0.02 BAR (-2 kPa)
+  CURRENT ERROR WHILE AT ATM. PRESS. ~ -0.02 BAR (-2 kPa)
+
+  Created by Jan Zaslawski
 */
 
 const int MAPSEN = A0;              // set MAP sensor input on Analog port 0
@@ -35,12 +36,13 @@ const float MIN_HYST = 0.01;        // minimum hysteresis in bar
 const float MAX_HYST = 0.01;        // maximum hysteresis in bar
 const float INPUT_VOLTAGE = 4.965;  // measured with multimeter
 const float REF_VOLTAGE = 2.485;    // from reference source
-volatile bool bool_running = false;      // for noticing the interrupt
+volatile bool pump_running = false; // for noticing the interrupt
 float pres_set;                     // for the setPressure()
-float current_pressure;
+float P_atm;
 
-float absPresMeasure(float voltage);
+float absPresMeasure(void);
 float avgVoltRead(void);
+void calibrate(void);
 void setPressure(void);
 void maintainPressure(void);
 void reset(void);
@@ -55,24 +57,21 @@ void setup() {
   analogReference(EXTERNAL);         // ref voltage to AREF pin
   pinMode(RELAY, OUTPUT);
   digitalWrite(RELAY, LOW);
+  calibrate();
 }
 
 
 void loop() {
   
-  float voltage = avgVoltRead();
-  current_pressure = absPresMeasure(voltage);
-  
-  if (bool_running == false){
+  if (pump_running == false){
     setPressure();
   } else {
     maintainPressure();
   }
 
-
-  Serial.println(current_pressure);
+  Serial.println(absPresMeasure());
   Serial.print("\t");
-  Serial.println(voltage);
+  Serial.println(avgVoltRead());
 }
 
 
@@ -91,31 +90,32 @@ float avgVoltRead(void){
 }
 
 
-  // measure absolute pressure in bar
-float absPresMeasure(float voltage){
+  // measure the current atmospheric pressure for reference
+void calibrate(void){
+  float voltage = avgVoltRead();
+  P_atm = (328.24 * voltage / INPUT_VOLTAGE - 6.53);
+}
+
+
+  // calculate absolute pressure in kPa & convert to bar
+float absPresMeasure(void){
+  float voltage = avgVoltRead();
   float pres_kpa = (328.24 * voltage / INPUT_VOLTAGE - 6.53);
-  return fmap(pres_kpa, 10.0, 101.325, -0.9, 0);
+  return fmap(pres_kpa, 10.0, P_atm, -0.9, 0);
 }
 
 
   // use potentiometer to choose pressure
 void setPressure(void){
-  float value;
-  while(bool_running == false){
-    
-//    float value = fmap(analogRead(POTENTIOMETER), 0, 1023, 0, 5.0);
+  while(pump_running == false){
     pres_set = fmap(analogRead(POTENTIOMETER), 0, 1023, -0.9, 0.);   // show in [bar], -0.1 bar to 0 bar
     
-    //
-//    Serial.print(value);
-//    Serial.print("\t");
     Serial.println(pres_set);
     Serial.print("\n");
     delay(100);
-    //
     
     if (digitalRead(ACPT_BTN) == LOW){
-      bool_running = true;
+      pump_running = true;
     }
   }
 }
@@ -123,18 +123,19 @@ void setPressure(void){
 
   // keep the pressure within a given hysteresis
 void maintainPressure(void){
-  if (absPresMeasure(avgVoltRead()) <= (pres_set - MIN_HYST)){
+  float pres = absPresMeasure();
+  if (pres <= (pres_set - MIN_HYST)){
     digitalWrite(RELAY, HIGH);
-  }  else if (absPresMeasure(avgVoltRead()) >= (pres_set + MAX_HYST)){
+  }  else if (pres >= (pres_set + MAX_HYST)){
      digitalWrite(RELAY, LOW);
-   }
+  }
 }
 
 
   // turn the pump off, ONLY FOR INTERRUPT
 void reset(void){
   digitalWrite(RELAY, LOW);
-  bool_running = false;
+  pump_running = false;
   
   //
   Serial.println("INTERRUPT");
