@@ -50,7 +50,7 @@ float fmap(float x, float in_min, float in_max, float out_min, float out_max);
 
 
 void setup() {
-  Serial.begin(9600);
+//  Serial.begin(9600);
   pinMode(RST_BTN, INPUT_PULLUP);
   pinMode(ACPT_BTN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RST_BTN), reset, LOW);
@@ -69,9 +69,9 @@ void loop() {
     maintainPressure();
   }
 
-  Serial.println(absPresMeasure());
-  Serial.print("\t");
-  Serial.println(avgVoltRead());
+//  Serial.println(absPresMeasure());
+//  Serial.print("\t");
+//  Serial.println(avgVoltRead());
 }
 
 
@@ -86,7 +86,9 @@ float avgVoltRead(void){
     sample_count++;
     delay(10);
   }
-  return ((sum / SAMPLES * REF_VOLTAGE) / 1024.0);
+//  return ((sum / SAMPLES * REF_VOLTAGE) / 1024.0);
+//  ^ disable LM385Z
+  return ((sum / SAMPLES * INPUT_VOLTAGE) / 1024.0);
 }
 
 
@@ -110,9 +112,9 @@ void setPressure(void){
   while(pump_running == false){
     pres_set = fmap(analogRead(POTENTIOMETER), 0, 1023, -0.9, 0.);   // show in [bar], -0.1 bar to 0 bar
     
-    Serial.println(pres_set);
-    Serial.print("\n");
-    delay(100);
+//    Serial.println(pres_set);
+//    Serial.print("\n");
+//    delay(100);
     
     if (digitalRead(ACPT_BTN) == LOW){
       pump_running = true;
@@ -137,13 +139,12 @@ void reset(void){
   digitalWrite(RELAY, LOW);
   pump_running = false;
   
-  //
-  Serial.println("INTERRUPT");
-  //
+//  Serial.println("INTERRUPT");
   
 }
 
 
+  // like map function but with float
 float fmap(float x, float in_min, float in_max, float out_min, float out_max){
   return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
 }
