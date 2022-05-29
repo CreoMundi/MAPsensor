@@ -26,6 +26,10 @@
   Created by Jan Zaslawski
 */
 
+#include <Wire.h> 
+#include <LiquidCrystal_I2C.h>
+LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  
+
 const int MAPSEN = A0;              // set MAP sensor input on Analog port 0
 const int RELAY = 13;               // output for the relay switch
 const int POTENTIOMETER = A5;
@@ -38,19 +42,25 @@ const float INPUT_VOLTAGE = 4.965;  // measured with multimeter
 const float REF_VOLTAGE = 2.485;    // from reference source
 volatile bool pump_running = false; // for noticing the interrupt
 float pres_set;                     // for the setPressure()
+float time_set;
 float P_atm;
+unsigned long starting_time;
 
 float absPresMeasure(void);
 float avgVoltRead(void);
 void calibrate(void);
 void setPressure(void);
+void setTimer(void);
 void maintainPressure(void);
+void checkTimer(void);
 void reset(void);
 float fmap(float x, float in_min, float in_max, float out_min, float out_max);
 
 
 void setup() {
-//  Serial.begin(9600);
+  lcd.begin(16,2);
+  lcd.backlight();
+  
   pinMode(RST_BTN, INPUT_PULLUP);
   pinMode(ACPT_BTN, INPUT_PULLUP);
   attachInterrupt(digitalPinToInterrupt(RST_BTN), reset, LOW);
@@ -62,16 +72,18 @@ void setup() {
 
 
 void loop() {
-  
   if (pump_running == false){
     setPressure();
+    setTimer();
+    pump_running = true;
   } else {
     maintainPressure();
+    checkTimer();
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Cisnienie: ");
+    lcd.print(absPresMeasure());
   }
-
-//  Serial.println(absPresMeasure());
-//  Serial.print("\t");
-//  Serial.println(avgVoltRead());
 }
 
 
@@ -87,7 +99,7 @@ float avgVoltRead(void){
     delay(10);
   }
 //  return ((sum / SAMPLES * REF_VOLTAGE) / 1024.0);
-//  ^ disable LM385Z
+//  ^ disabled LM385Z
   return ((sum / SAMPLES * INPUT_VOLTAGE) / 1024.0);
 }
 
@@ -107,17 +119,46 @@ float absPresMeasure(void){
 }
 
 
-  // use potentiometer to choose pressure
 void setPressure(void){
-  while(pump_running == false){
-    pres_set = fmap(analogRead(POTENTIOMETER), 0, 1023, -0.9, 0.);   // show in [bar], -0.1 bar to 0 bar
-    
-//    Serial.println(pres_set);
-//    Serial.print("\n");
-//    delay(100);
+  bool P = false;
+  while(P == false){
+    pres_set = fmap(analogRead(POTENTIOMETER), 0, 1023, -0.9, 0);   // show in [bar]
+        
+    lcd.clear();
+    lcd.setCursor(0,0);
+    lcd.print("Cisnienie: ");
+    lcd.print(pres_set);
+    lcd.print(" bar");
     
     if (digitalRead(ACPT_BTN) == LOW){
-      pump_running = true;
+      P = true;
+    }
+  }
+}
+
+
+void setTimer(void){
+  bool T = false;
+  while(T == false){
+    time_set = fmap(analogRead(POTENTIOMETER), 0, 1023, 0, 96);
+    time_set = time_set * 0.25; 
+
+    if (time_set == 0){
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Praca ciagla");
+      
+    } else {
+      lcd.clear();
+      lcd.setCursor(0,0);
+      lcd.print("Wylacz za: ");
+      lcd.print(time_set);
+      lcd.print(" h");
+    }
+    
+    if (digitalRead(ACPT_BTN) == LOW){
+      T = true;
+      starting_time = millis();
     }
   }
 }
@@ -134,13 +175,19 @@ void maintainPressure(void){
 }
 
 
+void checkTimer(void){
+  unsigned long time_set_to_milis = time_set * 3600000;
+  if ((millis() - starting_time) >= time_set_to_milis){
+    digitalWrite(RELAY, LOW);
+    pump_running = false;
+  }
+}
+
+
   // turn the pump off, ONLY FOR INTERRUPT
 void reset(void){
   digitalWrite(RELAY, LOW);
   pump_running = false;
-  
-//  Serial.println("INTERRUPT");
-  
 }
 
 
