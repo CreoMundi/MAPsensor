@@ -31,8 +31,8 @@
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  
 
 const int MAPSEN = A0;              // set MAP sensor input on Analog port 0
-const int RELAY = 13;               // output for the relay switch
-const int POTENTIOMETER = A5;
+const int RELAY = 5;               // output for the relay switch
+const int POTENTIOMETER = A3;
 const int RST_BTN = 2;              // interrupt pin
 const int ACPT_BTN = 8;
 const int SAMPLES = 20;             // number of samples used for the approximation
@@ -51,7 +51,7 @@ float avgVoltRead(void);
 void calibrate(void);
 void setPressure(void);
 void setTimer(void);
-void maintainPressure(void);
+void maintainPressure(float current_pressure);
 void checkTimer(void);
 void reset(void);
 float fmap(float x, float in_min, float in_max, float out_min, float out_max);
@@ -77,12 +77,15 @@ void loop() {
     setTimer();
     pump_running = true;
   } else {
-    maintainPressure();
+    float current_pressure = absPresMeasure();
+    maintainPressure(current_pressure);
     checkTimer();
     lcd.clear();
     lcd.setCursor(0,0);
     lcd.print("Cisnienie: ");
-    lcd.print(absPresMeasure());
+    lcd.setCursor(0,1);
+    lcd.print(current_pressure);
+    lcd.print(" bar");
   }
 }
 
@@ -98,9 +101,9 @@ float avgVoltRead(void){
     sample_count++;
     delay(10);
   }
-//  return ((sum / SAMPLES * REF_VOLTAGE) / 1024.0);
-//  ^ disabled LM385Z
-  return ((sum / SAMPLES * INPUT_VOLTAGE) / 1024.0);
+  return ((sum / SAMPLES * REF_VOLTAGE) / 1024.0);
+
+//  return ((sum / SAMPLES * INPUT_VOLTAGE) / 1024.0);
 }
 
 
@@ -113,7 +116,8 @@ void calibrate(void){
 
   // calculate absolute pressure in kPa & convert to bar
 float absPresMeasure(void){
-  float voltage = avgVoltRead();
+//  float voltage = avgVoltRead();
+  float voltage = analogRead(MAPSEN);
   float pres_kpa = (328.24 * voltage / INPUT_VOLTAGE - 6.53);
   return fmap(pres_kpa, 10.0, P_atm, -0.9, 0);
 }
@@ -126,12 +130,15 @@ void setPressure(void){
         
     lcd.clear();
     lcd.setCursor(0,0);
-    lcd.print("Cisnienie: ");
+    lcd.print("Ustaw cisnienie:");
+    lcd.setCursor(0,1);
     lcd.print(pres_set);
     lcd.print(" bar");
+    delay(200);
     
     if (digitalRead(ACPT_BTN) == LOW){
       P = true;
+      delay(1000);
     }
   }
 }
@@ -154,6 +161,7 @@ void setTimer(void){
       lcd.print("Wylacz za: ");
       lcd.print(time_set);
       lcd.print(" h");
+      delay(200);
     }
     
     if (digitalRead(ACPT_BTN) == LOW){
@@ -165,11 +173,10 @@ void setTimer(void){
 
 
   // keep the pressure within a given hysteresis
-void maintainPressure(void){
-  float pres = absPresMeasure();
-  if (pres <= (pres_set - MIN_HYST)){
+void maintainPressure(float current_pressure){
+  if (current_pressure >= (pres_set - MIN_HYST)){
     digitalWrite(RELAY, HIGH);
-  }  else if (pres >= (pres_set + MAX_HYST)){
+  }  else if (current_pressure <= (pres_set + MAX_HYST)){
      digitalWrite(RELAY, LOW);
   }
 }
