@@ -12,17 +12,15 @@
   100 kPa = 1 bar
   
   MAP sensor min pressure measured: 10 kPa with 0.25 V (typical)
-
-  8 kPa with 0.25 V (empirical)
+  MAP sensor max pressure measured: 307.5 kPa with 4.75 V (typical)
+  
+  8 kPa with 0.25 V (empirical with reference voltage)
   100.89 kPa with 1.615V (empirical with reference voltage)
   
-  MAP sensor max pressure measured: 307.5 kPa with 4.75 V (typical)
   MAP sensor linear model formula:
   y=ax+b; a = 328,2416; b = -6,5278
   reference voltage from LM385Z 2.5 is used in order to increase resolution
   Ur = 2,485 V (measured with multimeter)
-  
-  CURRENT ERROR WHILE AT ATM. PRESS. ~ -0.02 BAR (-2 kPa)
 
   FIRST RUN MUST BE DONE @ ATMOSPHERIC PRESSURE FOR CALIBRATION
 
@@ -34,11 +32,11 @@
 LiquidCrystal_I2C lcd(0x27, 2, 1, 0, 4, 5, 6, 7, 3, POSITIVE);  
 
 const int MAPSEN = A0;              // set MAP sensor input on Analog port 0
-const int RELAY = 5;                // output for the relay switch
+const int RELAY = 5;                // output pin for the relay switch
 const int POTENTIOMETER = A3;
 const int RST_BTN = 2;              // interrupt pin
 const int ACPT_BTN = 8;
-const int SAMPLES = 20;             // number of samples used for the approximation
+const int SAMPLES = 20;             // number of samples used for the avgVoltRead approximation
 const float INPUT_VOLTAGE = 4.965;  // measured with multimeter
 const float REF_VOLTAGE = 2.485;    // from reference source
 volatile bool pump_running = false; // for noticing the interrupt
@@ -49,6 +47,7 @@ float high_hist;
 float P_atm;                        // measured once while calibrating
 unsigned long starting_time;
 
+void runDebug(void)
 float presMeasure(void);
 float avgVoltRead(void);
 void calibrate(void);
@@ -61,9 +60,7 @@ void reset(void);
 float fmap(float x, float in_min, float in_max, float out_min, float out_max);
 
 
-void setup() {
-//  Serial.begin(9600);
-  
+void setup() { 
   lcd.begin(16,2);
   lcd.backlight();
   
@@ -74,6 +71,10 @@ void setup() {
   pinMode(RELAY, OUTPUT);
   digitalWrite(RELAY, LOW);
   calibrate();
+
+//  -----------
+//  runDebug();
+//  -----------
 
   lcd.clear();
   lcd.setCursor(0,0);
@@ -103,19 +104,24 @@ void loop() {
     lcd.print(current_pressure);
     lcd.print(" bar");
   }
-
-/*
-  Serial.print(presMeasure());
-  Serial.println(" bar");
-  Serial.print(avgVoltRead());
-  Serial.println("V");
-  Serial.print(P_atm);
-  Serial.println(" kPa");
-  Serial.print("\n");
-  delay(400);
-*/
 }
 
+
+
+void runDebug(void){
+  Serial.begin(9600);
+  
+  while(1){
+    Serial.print("relative pressure:\t");
+    Serial.print(presMeasure());
+    Serial.print(" bar \n voltage:\t");
+    Serial.print(avgVoltRead());
+    Serial.println(" V \n atmospheric pressure:\t");
+    Serial.print(P_atm);
+    Serial.println(" kPa \n");
+    delay(400);
+  }
+}
 
 
   // measure voltage and approximate for increased precision
